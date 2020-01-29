@@ -28,6 +28,9 @@ def normalize_data(img):
     """
     Normalize your inputs here and return them.
     """
+    maxi = img.max(axis=1)
+    mini = img.min(axis=1)
+    img = ((img.T - mini)/(maxi-mini)).T
     return img
 
 
@@ -35,7 +38,9 @@ def one_hot_encoding(labels, num_classes=10):
     """
     Encode labels using one hot encoding and return them.
     """
-    return labels
+    oh_labels = np.zeros((labels.size, num_classes)) # row-wise
+    oh_labels[np.arange(labels.size),labels] = 1
+    return oh_labels
 
 
 def load_data(path, mode='train'):
@@ -185,8 +190,10 @@ class Layer():
         Define the architecture and create placeholder.
         """
         np.random.seed(42)
-        self.w = None    # Declare the Weight matrix
-        self.b = None    # Create a placeholder for Bias
+        w = np.random.randn(in_units, out_units)
+        w /= np.std(w, axis=0) * 1/np.sqrt(in_units)
+        self.w = w    # Declare the Weight matrix
+        self.b = np.zeros(out_units)                    # Create a placeholder for Bias
         self.x = None    # Save the input to forward in this
         self.a = None    # Save the output of forward pass in this (without activation)
 
@@ -206,7 +213,11 @@ class Layer():
         Do not apply activation here.
         Return self.a
         """
-        raise NotImplementedError("Layer forward pass not implemented.")
+        self.x = x
+        x_ = np.hstack((np.ones(self.x.shape[0]),self.x))
+        w_ = np.vstack((self.b, self.w))
+        self.a = x_ @ w_
+        return self.a
 
     def backward(self, delta):
         """
@@ -214,7 +225,9 @@ class Layer():
         computes gradient for its weights and the delta to pass to its previous layers.
         Return self.dx
         """
-        raise NotImplementedError("Backprop for Layer not implemented.")
+        self.d_w = self.x.T
+        self.d_x = self.w.T
+        return self.d_x
 
 
 class Neuralnetwork():
