@@ -69,7 +69,9 @@ def softmax(x):
     Implement the softmax function here.
     Remember to take care of the overflow condition.
     """
-    raise NotImplementedError("Softmax not implemented")
+    x_max = x.max(axis=1)  ## Taking x = w0x0+w1x1+wnxn
+    x = (x.T - x_max).T
+    return (np.exp(x).T / np.sum(np.exp(x), axis=1)).T
 
 
 class Activation():
@@ -266,6 +268,10 @@ class Neuralnetwork():
         Compute forward pass through all the layers in the network and return it.
         If targets are provided, return loss as well.
         """
+        # for layer in self.layers:
+        #     a = layer(x)
+        #     y = activation(a)
+            
         raise NotImplementedError("Forward not implemented for NeuralNetwork")
 
     def loss(self, logits, targets):
@@ -313,7 +319,10 @@ if __name__ == "__main__":
     x_test,  y_test  = load_data(path="./", mode="t10k")
 
     # Create splits for validation data here.
-    # x_valid, y_valid = ...
+    split_ratio = 0.9
+    split_idx = int(split_ratio*len(x_train))
+    x_valid, y_valid = x_train[split_idx:], y_train[split_idx:]
+    x_train, y_train = x_train[:split_idx], x_train[:split_idx]
 
     # train the model
     train(model, x_train, y_train, x_valid, y_valid, config)
