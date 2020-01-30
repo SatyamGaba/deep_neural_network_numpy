@@ -193,8 +193,10 @@ class Layer():
         Define the architecture and create placeholder.
         """
         np.random.seed(42)
-        w = np.random.randn(in_units, out_units)
-        w /= (np.std(w, axis=0) * np.sqrt(in_units)) # weights initailized to mean=0 and std = 1/sqrt(in_units)
+        # w = np.random.randn(in_units, out_units)
+        # w /= (np.std(w, axis=0))
+        w = np.random.normal(loc=0.0, scale=1.0, size=(in_units, out_units))
+        # print(np.std(w,axis=0)# * np.sqrt(in_units)) # weights initailized to mean=0 and std = 1/sqrt(in_units)
         self.w = w    # Declare the Weight matrix
         self.b = np.zeros(out_units)                    # Create a placeholder for Bias
         self.x = None    # Save the input to forward in this
@@ -279,9 +281,10 @@ class Neuralnetwork():
         """
         for layer in self.layers:
             a = layer(x)
+            # print(a.shape)
             x = a
-        if targets != None:
-            return x , self.loss(x,targets) 
+        # if targets.all() != None:
+            # return x , self.loss(x,targets) 
         return x
         # raise NotImplementedError("Forward not implemented for NeuralNetwork")
 
@@ -293,7 +296,9 @@ class Neuralnetwork():
         self.last_targets = targets
         self.logits = logits
         y = softmax(logits)
-        cross_entropy_loss = - np.sum( t*np.log(y) + (1-t)*np.log(1-y) ) /y.shape[0]
+        self.output = y
+        # print(targets.shape)
+        cross_entropy_loss = - np.sum( t*np.log(y) ) /y.shape[0]
         self.final_loss = cross_entropy_loss
         return self.final_loss
         # raise NotImplementedError("Loss not implemented for NeuralNetwork")
@@ -303,12 +308,13 @@ class Neuralnetwork():
         Implement backpropagation here.
         Call backward methods of individual layer's.
         '''
-        last_loss = self.logits*(self.last_targets - self.logits) # gradient before softmax layer
+        last_loss = self.logits*(self.last_targets - self.output) # gradient before softmax layer
         for layer in self.layers[::-1]:
             last_loss = layer.backward(last_loss)
-            if isinstance(layer, Layer):
-                layer.w = self.gamma*layer.w + self.lr*layer.d_w 
-                layer.b = self.gamma*layer.b + self.lr*layer.d_w
+            # print("w: ", layer.w[0])
+            # if isinstance(layer, Layer):
+            #     layer.w = self.gamma*layer.w + self.lr*layer.d_w 
+            #     layer.b = self.gamma*layer.b + self.lr*layer.d_w
 
         # raise NotImplementedError("Backprop not implemented for NeuralNetwork")
 
@@ -333,6 +339,7 @@ def train(model, x_train, y_train, x_valid, y_valid, config):
         sample_indices = sample(range(x_train.shape[0]), batch_size)
         mini_batch_x = x_train[sample_indices, :]
         mini_batch_y = y_train[sample_indices, :]
+        # print("mini_x", mini_batch_x.shape)
         logits = model(mini_batch_x)
         loss = model.loss(logits, mini_batch_y)
         model.backward()
@@ -381,7 +388,7 @@ if __name__ == "__main__":
     split_ratio = 0.9
     split_idx = int(split_ratio*len(x_train))
     x_valid, y_valid = x_train[split_idx:], y_train[split_idx:]
-    x_train, y_train = x_train[:split_idx], x_train[:split_idx]
+    x_train, y_train = x_train[:split_idx], y_train[:split_idx]
 
     # train the model
     train(model, x_train, y_train, x_valid, y_valid, config)
