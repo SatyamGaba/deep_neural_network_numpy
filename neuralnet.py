@@ -70,8 +70,8 @@ def softmax(x):
     Remember to take care of the overflow condition.
     """
     x_max = x.max(axis=1)  ## Taking x = w0x0+w1x1+wnxn
-    x = (x.T - x_max).T
-    return (np.exp(x).T / np.sum(np.exp(x), axis=1)).T
+    e = (x.T - x_max).T
+    return np.exp(e)/ np.sum(np.exp(e), axis=1, keepdims=True)
 
 
 class Activation():
@@ -193,7 +193,7 @@ class Layer():
         """
         np.random.seed(42)
         w = np.random.randn(in_units, out_units)
-        w /= np.std(w, axis=0) * 1/np.sqrt(in_units)
+        w /= (np.std(w, axis=0) * np.sqrt(in_units)) # weights initailized to mean=0 and std = 1/sqrt(in_units)
         self.w = w    # Declare the Weight matrix
         self.b = np.zeros(out_units)                    # Create a placeholder for Bias
         self.x = None    # Save the input to forward in this
@@ -216,9 +216,10 @@ class Layer():
         Return self.a
         """
         self.x = x
-        x_ = np.hstack((np.ones(self.x.shape[0]),self.x))
-        w_ = np.vstack((self.b, self.w))
-        self.a = x_ @ w_
+        self.a = np.dot(self.x,self.w) + self.b
+        # x_ = np.hstack((np.ones(self.x.shape[0]),self.x))
+        # w_ = np.vstack((self.b, self.w))
+        # self.a = x_ @ w_
         return self.a
 
     def backward(self, delta):
@@ -227,8 +228,10 @@ class Layer():
         computes gradient for its weights and the delta to pass to its previous layers.
         Return self.dx
         """
-        self.d_w = self.x.T
-        self.d_x = self.w.T
+        n = self.x.shape[0] # batch size
+        self.d_w = np.dot(self.x.T, delta)/n
+        self.d_x = np.dot(delta, self.w.T)/n
+        self.d_b = delta / n
         return self.d_x
 
 
@@ -268,24 +271,40 @@ class Neuralnetwork():
         Compute forward pass through all the layers in the network and return it.
         If targets are provided, return loss as well.
         """
-        # for layer in self.layers:
-        #     a = layer(x)
-        #     y = activation(a)
-            
-        raise NotImplementedError("Forward not implemented for NeuralNetwork")
+        for layer in self.layers:
+            a = layer(x)
+            x = a
+        return x
+        # raise NotImplementedError("Forward not implemented for NeuralNetwork")
 
     def loss(self, logits, targets):
         '''
         compute the categorical cross-entropy loss and return it.
         '''
-        raise NotImplementedError("Loss not implemented for NeuralNetwork")
+        t = targets
+        self.last_targets = targets
+        self.logits = logits
+        y = softmax(logits)
+        cross_entropy_loss = - np.sum( t*np.log(y) + (1-t)*np.log(1-y) ) /y.shape[0]
+        self.final_loss = cross_entropy_loss
+        return self.final_loss
+        # raise NotImplementedError("Loss not implemented for NeuralNetwork")
 
     def backward(self):
         '''
         Implement backpropagation here.
         Call backward methods of individual layer's.
         '''
-        raise NotImplementedError("Backprop not implemented for NeuralNetwork")
+        lr = config['learning_rate']
+        gamma = config['momentum_gamma']
+        last_loss = self.logits*(self.last_targets - self.logits) # gradient before softmax layer
+        for layer in self.layers[::-1]:
+            last_loss = layer.backward(last_loss)
+            if isinstance(layer, Layer):
+                layer.w = gamma*layer.w + lr*layer.d_w 
+                layer.b = gamma*layer.b + lr*layer.d_w
+
+        # raise NotImplementedError("Backprop not implemented for NeuralNetwork")
 
 
 def train(model, x_train, y_train, x_valid, y_valid, config):
