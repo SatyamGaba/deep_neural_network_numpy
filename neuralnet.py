@@ -15,6 +15,7 @@
 import os, gzip
 import yaml
 import numpy as np
+from random import sample
 
 
 def load_config(path):
@@ -314,16 +315,50 @@ def train(model, x_train, y_train, x_valid, y_valid, config):
     Implement Early Stopping.
     Use config to set parameters for training like learning rate, momentum, etc.
     """
-
-    raise NotImplementedError("Train method not implemented")
+    batch_size = config['batch_size']
+    epochs = config['epochs']
+    best_weights = []
+    best_loss = 1e10
+    early_stop = config['early_stop']
+    early_stop_threshold = config['early_stop_epoch']
+    prev_loss = 1e10
+    loss_increase_counter = 0
+    
+    for i in range(epochs):
+        sample_indices = sample(range(x_train.shape[0]), batch_size)
+        mini_batch_x = x_train[sample_indices, :]
+        mini_batch_y = y_train[sample_indices, :]
+        logits = model(mini_batch_x)
+        loss = model.loss(logits, mini_batch_y)
+        model.backward()
+        val_logits = model(x_valid)
+        val_loss = model.loss(val_logits, y_valid)
+        print("Train loss at epoch %d: %.3f" % (i+1, loss))
+        print("Validation loss at epoch %d: %.3f" % (i+1, val_loss))
+        if val_loss < best_loss:
+            best_loss = val_loss
+            best_weights = []
+            for layer in model.layers:
+                best_weights.append(layer.w)
+        if val_loss > prev_loss:
+            loss_increase_counter += 1
+        else:
+            loss_increase_counter = 0
+        if loss_increase_counter >= 5 and early_stop:
+            break
+        prev_loss = val_loss
+    
+    for j, layer in enumerate(model.layers):
+        layer.w = best_weights[j]
+#    raise NotImplementedError("Train method not implemented")
 
 
 def test(model, X_test, y_test):
     """
     Calculate and return the accuracy on the test set.
     """
-
-    raise NotImplementedError("Test method not implemented")
+    
+#    raise NotImplementedError("Test method not implemented")
 
 
 if __name__ == "__main__":
