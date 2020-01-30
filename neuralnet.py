@@ -254,6 +254,11 @@ class Neuralnetwork():
         self.x = None        # Save the input to forward in this
         self.y = None        # Save the output vector of model in this
         self.targets = None  # Save the targets in forward in this variable
+        
+        self.lr = config['learning_rate']
+        self.gamma = config['momentum_gamma']
+        self.last_targets = None
+        self.logits = None
 
         # Add layers specified by layer_specs.
         for i in range(len(config['layer_specs']) - 1):
@@ -275,6 +280,8 @@ class Neuralnetwork():
         for layer in self.layers:
             a = layer(x)
             x = a
+        if targets != None:
+            return x , self.loss(x,targets) 
         return x
         # raise NotImplementedError("Forward not implemented for NeuralNetwork")
 
@@ -296,14 +303,12 @@ class Neuralnetwork():
         Implement backpropagation here.
         Call backward methods of individual layer's.
         '''
-        lr = config['learning_rate']
-        gamma = config['momentum_gamma']
         last_loss = self.logits*(self.last_targets - self.logits) # gradient before softmax layer
         for layer in self.layers[::-1]:
             last_loss = layer.backward(last_loss)
             if isinstance(layer, Layer):
-                layer.w = gamma*layer.w + lr*layer.d_w 
-                layer.b = gamma*layer.b + lr*layer.d_w
+                layer.w = self.gamma*layer.w + self.lr*layer.d_w 
+                layer.b = self.gamma*layer.b + self.lr*layer.d_w
 
         # raise NotImplementedError("Backprop not implemented for NeuralNetwork")
 
