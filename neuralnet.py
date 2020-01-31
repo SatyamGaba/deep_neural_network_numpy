@@ -265,8 +265,6 @@ class Neuralnetwork():
         
         self.lr = config['learning_rate']
         self.gamma = config['momentum_gamma']
-        self.last_targets = None
-        self.logits = None
 
         # Add layers specified by layer_specs.
         for i in range(len(config['layer_specs']) - 1):
@@ -299,13 +297,10 @@ class Neuralnetwork():
         '''
         compute the categorical cross-entropy loss and return it.
         '''
-        t = targets
-        self.last_targets = targets
-        self.logits = logits
-        y = softmax(logits)
-        self.output = y
+        self.targets = targets
+        self.y = softmax(logits)
         # print(targets.shape)
-        cross_entropy_loss = - np.sum( t*np.log(y) ) /y.shape[0]
+        cross_entropy_loss = - np.sum( self.targets*np.log(self.y) ) /self.y.shape[0]
         self.final_loss = cross_entropy_loss
         return self.final_loss
         # raise NotImplementedError("Loss not implemented for NeuralNetwork")
@@ -315,7 +310,7 @@ class Neuralnetwork():
         Implement backpropagation here.
         Call backward methods of individual layer's.
         '''
-        last_loss = self.logits * (self.output - self.last_targets) # gradient before softmax layer
+        last_loss = (self.y - self.targets) # gradient before softmax layer
         for layer in self.layers[::-1]:
             last_loss = layer.backward(last_loss)
             if isinstance(layer, Layer):
