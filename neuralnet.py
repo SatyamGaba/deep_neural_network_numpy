@@ -240,7 +240,8 @@ class Layer():
         n = self.x.shape[0] # batch size
         self.d_w = np.dot(self.x.T, delta)/n
         self.d_x = np.dot(delta, self.w.T)/n
-        self.d_b = delta / n
+        self.d_b = np.sum(delta, axis=0) / n
+        
         return self.d_x
 
 
@@ -310,15 +311,15 @@ class Neuralnetwork():
         Implement backpropagation here.
         Call backward methods of individual layer's.
         '''
-        last_loss = self.targets - self.y # gradient before softmax layer
+        last_loss = (self.targets - self.y) # gradient before softmax layer
         for layer in self.layers[::-1]:
             last_loss = layer.backward(last_loss)
             if isinstance(layer, Layer):
                 # print("w: ", layer.w[0])
-                layer.delta_w = (-self.gamma * layer.delta_w)*0 - self.lr*layer.d_w
-                layer.delta_b = (-self.gamma * layer.delta_b)*0 - self.lr
-                layer.w = layer.w - layer.delta_w
-                layer.b = layer.b - layer.delta_b
+                layer.delta_w = (self.gamma * layer.delta_w) + (1-self.gamma)*self.lr*layer.d_w
+                layer.delta_b = (self.gamma * layer.delta_b) + (1-self.gamma)*self.lr*layer.d_b
+                layer.w = layer.w + layer.delta_w
+                layer.b = layer.b + layer.delta_b
 
         # raise NotImplementedError("Backprop not implemented for NeuralNetwork")
 
