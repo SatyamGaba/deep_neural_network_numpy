@@ -121,6 +121,7 @@ class Activation():
         """
         Compute the backward pass.
         """
+        # print("d1 shape", delta.shape)
         if self.activation_type == "sigmoid":
             grad = self.grad_sigmoid()
 
@@ -130,6 +131,7 @@ class Activation():
         elif self.activation_type == "ReLU":
             grad = self.grad_ReLU()
 
+        # print("grad ", grad.shape)
         return grad * delta
 
     def sigmoid(self, x):
@@ -206,6 +208,9 @@ class Layer():
         self.d_w = None  # Save the gradient w.r.t w in this
         self.d_b = None  # Save the gradient w.r.t b in this
 
+        self.delta_w = np.zeros_like(self.w) # to include momentum term
+        self.delta_b = np.zeros_like(self.b)
+
     def __call__(self, x):
         """
         Make layer callable.
@@ -231,6 +236,7 @@ class Layer():
         computes gradient for its weights and the delta to pass to its previous layers.
         Return self.dx
         """
+        # print("d2 shape", delta.shape)
         n = self.x.shape[0] # batch size
         self.d_w = np.dot(self.x.T, delta)/n
         self.d_x = np.dot(delta, self.w.T)/n
@@ -280,11 +286,12 @@ class Neuralnetwork():
         If targets are provided, return loss as well.
         """
         for layer in self.layers:
+            # print(layer)
             a = layer(x)
             # print(a.shape)
             x = a
-        # if targets.all() != None:
-            # return x , self.loss(x,targets) 
+        if targets is not None:
+            return x , self.loss(x,targets) 
         return x
         # raise NotImplementedError("Forward not implemented for NeuralNetwork")
 
@@ -308,13 +315,15 @@ class Neuralnetwork():
         Implement backpropagation here.
         Call backward methods of individual layer's.
         '''
-        last_loss = self.logits*(self.last_targets - self.output) # gradient before softmax layer
+        last_loss = self.logits * (self.output - self.last_targets) # gradient before softmax layer
         for layer in self.layers[::-1]:
             last_loss = layer.backward(last_loss)
-            # print("w: ", layer.w[0])
-            # if isinstance(layer, Layer):
-            #     layer.w = self.gamma*layer.w + self.lr*layer.d_w 
-            #     layer.b = self.gamma*layer.b + self.lr*layer.d_w
+            if isinstance(layer, Layer):
+                # print("w: ", layer.w[0])
+                layer.delta_w = self.gamma * layer.delta_w - self.lr*layer.d_w
+                layer.delta_b = self.gamma * layer.delta_b - self.lr
+                layer.w = layer.w + layer.delta_w
+                layer.b = layer.b + layer.delta_b
 
         # raise NotImplementedError("Backprop not implemented for NeuralNetwork")
 
@@ -336,6 +345,7 @@ def train(model, x_train, y_train, x_valid, y_valid, config):
     loss_increase_counter = 0
     
     for i in range(epochs):
+        print("epoch no: ", i+1)
         sample_indices = sample(range(x_train.shape[0]), batch_size)
         mini_batch_x = x_train[sample_indices, :]
         mini_batch_y = y_train[sample_indices, :]
@@ -351,18 +361,22 @@ def train(model, x_train, y_train, x_valid, y_valid, config):
             best_loss = val_loss
             best_weights = []
             for layer in model.layers:
-                best_weights.append(layer.w)
+                if isinstance(layer, Layer):
+                    best_weights.append(layer.w)
         if val_loss > prev_loss:
             loss_increase_counter += 1
         else:
             loss_increase_counter = 0
         if loss_increase_counter >= 5 and early_stop:
+            print("Early Stopping")
             break
         prev_loss = val_loss
     
-    for j, layer in enumerate(model.layers):
-        layer.w = best_weights[j]
-#    raise NotImplementedError("Train method not implemented")
+    j=0
+    for layer in enumerate(model.layers):
+        if isinstance(layer, Layer):
+            layer.w = best_weights[j]
+            j += 1
 
 
 def test(model, X_test, y_test):
