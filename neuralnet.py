@@ -310,15 +310,15 @@ class Neuralnetwork():
         Implement backpropagation here.
         Call backward methods of individual layer's.
         '''
-        last_loss = (self.y - self.targets) # gradient before softmax layer
+        last_loss = self.targets - self.y # gradient before softmax layer
         for layer in self.layers[::-1]:
             last_loss = layer.backward(last_loss)
             if isinstance(layer, Layer):
                 # print("w: ", layer.w[0])
-                layer.delta_w = self.gamma * layer.delta_w - self.lr*layer.d_w
-                layer.delta_b = self.gamma * layer.delta_b - self.lr
-                layer.w = layer.w + layer.delta_w
-                layer.b = layer.b + layer.delta_b
+                layer.delta_w = (-self.gamma * layer.delta_w)*0 - self.lr*layer.d_w
+                layer.delta_b = (-self.gamma * layer.delta_b)*0 - self.lr
+                layer.w = layer.w - layer.delta_w
+                layer.b = layer.b - layer.delta_b
 
         # raise NotImplementedError("Backprop not implemented for NeuralNetwork")
 
@@ -340,7 +340,6 @@ def train(model, x_train, y_train, x_valid, y_valid, config):
     loss_increase_counter = 0
     
     for i in range(epochs):
-        print("epoch no: ", i+1)
         sample_indices = sample(range(x_train.shape[0]), batch_size)
         mini_batch_x = x_train[sample_indices, :]
         mini_batch_y = y_train[sample_indices, :]
@@ -350,8 +349,9 @@ def train(model, x_train, y_train, x_valid, y_valid, config):
         model.backward()
         val_logits = model(x_valid)
         val_loss = model.loss(val_logits, y_valid)
-        print("Train loss at epoch %d: %.3f" % (i+1, loss))
-        print("Validation loss at epoch %d: %.3f" % (i+1, val_loss))
+        print("Epoch #%d: "%(i+1), end='')
+        print("Train loss = %.3f, " % (loss), end='')
+        print("Validation loss = %.3f" % (val_loss))
         if val_loss < best_loss:
             best_loss = val_loss
             best_weights = []
@@ -362,7 +362,7 @@ def train(model, x_train, y_train, x_valid, y_valid, config):
             loss_increase_counter += 1
         else:
             loss_increase_counter = 0
-        if loss_increase_counter >= 5 and early_stop:
+        if loss_increase_counter >= early_stop_threshold and early_stop:
             print("Early Stopping")
             break
         prev_loss = val_loss
@@ -378,6 +378,13 @@ def test(model, X_test, y_test):
     """
     Calculate and return the accuracy on the test set.
     """
+    logits = model(X_test)
+    output = softmax(logits)
+    pred = np.argmax(output, axis=1)
+    expected = np.argmax(y_test, axis=1)
+    
+    correct = np.where(pred==expected, 1, 0)
+    return sum(correct) / y_test.shape[0]
     
 #    raise NotImplementedError("Test method not implemented")
 
@@ -400,6 +407,7 @@ if __name__ == "__main__":
     x_train, y_train = x_train[:split_idx], y_train[:split_idx]
 
     # train the model
-    train(model, x_train, y_train, x_valid, y_valid, config)
+    train(model, x_train, y_train, x_valid, y_valid, config)    
 
     test_acc = test(model, x_test, y_test)
+    print("Test accuracy:", test_acc)
