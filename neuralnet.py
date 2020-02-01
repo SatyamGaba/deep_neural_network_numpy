@@ -15,7 +15,9 @@
 import os, gzip
 import yaml
 import numpy as np
+import matplotlib.pyplot as plt
 from random import sample
+from tqdm import tqdm
 
 
 def load_config(path):
@@ -253,6 +255,7 @@ class Neuralnetwork():
         
         self.lr = config['learning_rate']
         self.gamma = config['momentum_gamma']
+        self.L2 = config['L2_penalty']
 
         # Add layers specified by layer_specs.
         for i in range(len(config['layer_specs']) - 1):
@@ -299,8 +302,8 @@ class Neuralnetwork():
             if isinstance(layer, Layer):
                 layer.delta_w = (self.gamma * layer.delta_w) + (1)*self.lr*layer.d_w
                 layer.delta_b = (self.gamma * layer.delta_b) + (1)*self.lr*layer.d_b
-                layer.w = layer.w + layer.delta_w
-                layer.b = layer.b + layer.delta_b
+                layer.w = layer.w + layer.delta_w - self.L2*layer.w
+                layer.b = layer.b + layer.delta_b - self.L2*layer.b
 
 
 def train(model, x_train, y_train, x_valid, y_valid, config):
@@ -312,26 +315,49 @@ def train(model, x_train, y_train, x_valid, y_valid, config):
     """
     batch_size = config['batch_size']
     epochs = config['epochs']
+    activation = config['activation']
+    gamma = config['momentum_gamma']
+    learning_rate = config['learning_rate']
+    l2_penalty = config['L2_penalty']
     best_weights = []
     best_loss = 1e10
     early_stop = config['early_stop']
     early_stop_threshold = config['early_stop_epoch']
     prev_loss = 1e10
     loss_increase_counter = 0
+    train_loss_array = []
+    val_loss_array = []
+    train_acc_array=[]
+    val_acc_array=[]
     
-    for i in range(epochs):
+    for i in tqdm(range(epochs)):
         sample_indices = sample(range(x_train.shape[0]), batch_size)
         mini_batch_x = x_train[sample_indices, :]
         mini_batch_y = y_train[sample_indices, :]
         logits = model(mini_batch_x)
-        loss = model.loss(logits, mini_batch_y)
+        output = softmax(logits)
+        pred = np.argmax(output, axis=1)
+        labels = np.argmax(mini_batch_y, axis=1)
+        correct = np.where(pred==labels, 1, 0)
+        train_acc = (np.sum(correct) / mini_batch_y.shape[0])*100
+        train_acc_array.append(train_acc)
+        train_loss = model.loss(logits, mini_batch_y)
+        train_loss_array.append(train_loss)
         model.backward()
+
         val_logits = model(x_valid)
+        val_output = softmax(val_logits)
+        val_pred = np.argmax(val_output, axis=1)
+        val_labels = np.argmax(y_valid, axis=1)
+        correct = np.where(val_pred==val_labels, 1, 0)
+        val_acc = (np.sum(correct) / y_valid.shape[0])*100
+        val_acc_array.append(val_acc)
         val_loss = model.loss(val_logits, y_valid)
-        print("Epoch #%d: "%(i+1), end='')
-        print("Train loss = %.3f, " % (loss), end='')
-        print("Validation loss = %.3f" % (val_loss))
+        val_loss_array.append(val_loss)
+        # print("Train loss = %.3f, " % (train_loss), end='')
+        # print("Validation loss = %.3f" % (val_loss))
         if val_loss < best_loss:
+            best_epoch = i
             best_loss = val_loss
             best_weights = []
             for layer in model.layers:
@@ -353,6 +379,28 @@ def train(model, x_train, y_train, x_valid, y_valid, config):
             layer.w = best_weights[j]
             j += 1
 
+    # plot the training an validation loss curve
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(range(len(train_acc_array)), train_acc_array, label="Training Accuracy")
+    ax.plot(range(len(val_acc_array)), val_acc_array, label="Validation Accuracy")
+    ax.plot(best_epoch, val_acc_array[best_epoch], marker="o", Label="Best weights")
+    ax.set(title="Mini-Batch Normalization", xlabel="No. of epochs", ylabel="Accuracy") # manually update title for each run
+    ax.legend()
+    ax.grid()
+    fig.savefig("./plots/Accuracy_%s_lr=%.4f_bsize=%d_g=%.2f_l2=%.2f.pdf"%(activation,learning_rate,batch_size,gamma,l2_penalty))
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(range(len(train_loss_array)), train_loss_array, label="Training Loss")
+    ax.plot(range(len(val_loss_array)), val_loss_array, label="Validation Loss")
+    ax.plot(best_epoch, val_loss_array[best_epoch], marker="o", Label="Best weights")
+    ax.set(title="Mini-Batch Normalization", xlabel="No. of epochs", ylabel="Cross Entropy Loss") # manually update title for each run
+    ax.legend()
+    ax.grid()
+    fig.savefig("./plots/Loss_%s_lr=%.4f_bsize=%d_g=%.2f_l2=%.2f.pdf"%(activation,learning_rate,batch_size,gamma,l2_penalty))
+    plt.show()
 
 def test(model, X_test, y_test):
     """
@@ -364,7 +412,7 @@ def test(model, X_test, y_test):
     expected = np.argmax(y_test, axis=1)
     
     correct = np.where(pred==expected, 1, 0)
-    return sum(correct) / y_test.shape[0]
+    return (sum(correct) / y_test.shape[0])*100
 
 
 if __name__ == "__main__":
