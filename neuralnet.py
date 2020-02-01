@@ -121,7 +121,6 @@ class Activation():
         """
         Compute the backward pass.
         """
-        # print("d1 shape", delta.shape)
         if self.activation_type == "sigmoid":
             grad = self.grad_sigmoid()
 
@@ -131,14 +130,12 @@ class Activation():
         elif self.activation_type == "ReLU":
             grad = self.grad_ReLU()
 
-        # print("grad ", grad.shape)
         return grad * delta
 
     def sigmoid(self, x):
         """
         Implement the sigmoid activation here.
         """
-#        raise NotImplementedError("Sigmoid not implemented")
         self.x = x
         return 1 / (1 + np.exp(-x))
 
@@ -146,7 +143,6 @@ class Activation():
         """
         Implement tanh here.
         """
-#        raise NotImplementedError("Tanh not implemented")
         self.x = x
         return np.tanh(x)
 
@@ -154,7 +150,6 @@ class Activation():
         """
         Implement ReLU here.
         """
-#        raise NotImplementedError("ReLu not implemented")
         self.x = x
         return np.maximum(0, x)
 
@@ -162,14 +157,12 @@ class Activation():
         """
         Compute the gradient for sigmoid here.
         """
-#        raise NotImplementedError("Sigmoid gradient not implemented")
         return self.sigmoid(self.x) * (1 - self.sigmoid(self.x))
 
     def grad_tanh(self):
         """
         Compute the gradient for tanh here.
         """
-#        raise NotImplementedError("tanh gradient not implemented")
         return 1 - (self.tanh(self.x))**2
 
     def grad_ReLU(self):
@@ -196,9 +189,8 @@ class Layer():
         """
         np.random.seed(42)
         # w = np.random.randn(in_units, out_units)
-        # w /= (np.std(w, axis=0))
+        # w /= (np.std(w, axis=0) * np.sqrt(in_units)) # weights initailized to mean=0 and std = 1/sqrt(in_units))
         w = np.random.normal(loc=0.0, scale=1.0, size=(in_units, out_units))
-        # print(np.std(w,axis=0)# * np.sqrt(in_units)) # weights initailized to mean=0 and std = 1/sqrt(in_units)
         self.w = w    # Declare the Weight matrix
         self.b = np.zeros(out_units)                    # Create a placeholder for Bias
         self.x = None    # Save the input to forward in this
@@ -225,9 +217,6 @@ class Layer():
         """
         self.x = x
         self.a = np.dot(self.x,self.w) + self.b
-        # x_ = np.hstack((np.ones(self.x.shape[0]),self.x))
-        # w_ = np.vstack((self.b, self.w))
-        # self.a = x_ @ w_
         return self.a
 
     def backward(self, delta):
@@ -236,11 +225,9 @@ class Layer():
         computes gradient for its weights and the delta to pass to its previous layers.
         Return self.dx
         """
-        # print("d2 shape", delta.shape)
-        n = self.x.shape[0] # batch size
-        self.d_w = np.dot(self.x.T, delta)/n
-        self.d_x = np.dot(delta, self.w.T)/n
-        self.d_b = np.sum(delta, axis=0) / n
+        self.d_w = np.dot(self.x.T, delta)
+        self.d_x = np.dot(delta, self.w.T)
+        self.d_b = np.sum(delta, axis=0)
         
         return self.d_x
 
@@ -285,14 +272,11 @@ class Neuralnetwork():
         If targets are provided, return loss as well.
         """
         for layer in self.layers:
-            # print(layer)
             a = layer(x)
-            # print(a.shape)
             x = a
         if targets is not None:
             return x , self.loss(x,targets) 
         return x
-        # raise NotImplementedError("Forward not implemented for NeuralNetwork")
 
     def loss(self, logits, targets):
         '''
@@ -300,28 +284,23 @@ class Neuralnetwork():
         '''
         self.targets = targets
         self.y = softmax(logits)
-        # print(targets.shape)
         cross_entropy_loss = - np.sum( self.targets*np.log(self.y) ) /self.y.shape[0]
         self.final_loss = cross_entropy_loss
         return self.final_loss
-        # raise NotImplementedError("Loss not implemented for NeuralNetwork")
 
     def backward(self):
         '''
         Implement backpropagation here.
         Call backward methods of individual layer's.
         '''
-        last_loss = (self.targets - self.y) # gradient before softmax layer
+        last_loss = self.targets - self.y # gradient before softmax layer
         for layer in self.layers[::-1]:
             last_loss = layer.backward(last_loss)
             if isinstance(layer, Layer):
-                # print("w: ", layer.w[0])
-                layer.delta_w = (self.gamma * layer.delta_w) + (1-self.gamma)*self.lr*layer.d_w
-                layer.delta_b = (self.gamma * layer.delta_b) + (1-self.gamma)*self.lr*layer.d_b
+                layer.delta_w = (self.gamma * layer.delta_w) + (1)*self.lr*layer.d_w
+                layer.delta_b = (self.gamma * layer.delta_b) + (1)*self.lr*layer.d_b
                 layer.w = layer.w + layer.delta_w
                 layer.b = layer.b + layer.delta_b
-
-        # raise NotImplementedError("Backprop not implemented for NeuralNetwork")
 
 
 def train(model, x_train, y_train, x_valid, y_valid, config):
@@ -344,7 +323,6 @@ def train(model, x_train, y_train, x_valid, y_valid, config):
         sample_indices = sample(range(x_train.shape[0]), batch_size)
         mini_batch_x = x_train[sample_indices, :]
         mini_batch_y = y_train[sample_indices, :]
-        # print("mini_x", mini_batch_x.shape)
         logits = model(mini_batch_x)
         loss = model.loss(logits, mini_batch_y)
         model.backward()
@@ -368,6 +346,7 @@ def train(model, x_train, y_train, x_valid, y_valid, config):
             break
         prev_loss = val_loss
     
+    # store best weights in the model
     j=0
     for layer in enumerate(model.layers):
         if isinstance(layer, Layer):
@@ -386,8 +365,6 @@ def test(model, X_test, y_test):
     
     correct = np.where(pred==expected, 1, 0)
     return sum(correct) / y_test.shape[0]
-    
-#    raise NotImplementedError("Test method not implemented")
 
 
 if __name__ == "__main__":
