@@ -192,7 +192,7 @@ class Layer():
         np.random.seed(42)
         # w = np.random.randn(in_units, out_units)
         # w /= (np.std(w, axis=0) * np.sqrt(in_units)) # weights initailized to mean=0 and std = 1/sqrt(in_units))
-        w = np.random.normal(loc=0.0, scale=1.0, size=(in_units, out_units))
+        w = np.random.normal(loc=0.0, scale=1.0/((in_units+out_units)**0.5), size=(in_units, out_units))
         self.w = w    # Declare the Weight matrix
         self.b = np.zeros(out_units)                    # Create a placeholder for Bias
         self.x = None    # Save the input to forward in this
@@ -211,13 +211,14 @@ class Layer():
         """
         return self.forward(x)
 
-    def forward(self, x):
+    def forward(self, x, epsilon=0):
         """
         Compute the forward pass through the layer here.
         Do not apply activation here.
         Return self.a
         """
         self.x = x
+        self.w += epsilon
         self.a = np.dot(self.x,self.w) + self.b
         return self.a
 
@@ -269,7 +270,7 @@ class Neuralnetwork():
         """
         return self.forward(x, targets)
 
-    def forward(self, x, targets=None):
+    def forward(self, x, targets=None, epsilon=0):
         """
         Compute forward pass through all the layers in the network and return it.
         If targets are provided, return loss as well.
@@ -287,11 +288,11 @@ class Neuralnetwork():
         '''
         self.targets = targets
         self.y = softmax(logits)
-        cross_entropy_loss = - np.sum( self.targets*np.log(self.y) ) /self.y.shape[0]
+        cross_entropy_loss = - np.mean( self.targets*np.log(self.y) )
         self.final_loss = cross_entropy_loss
         return self.final_loss
 
-    def backward(self):
+    def backward(self, epsilon=0):
         '''
         Implement backpropagation here.
         Call backward methods of individual layer's.
@@ -300,6 +301,7 @@ class Neuralnetwork():
         for layer in self.layers[::-1]:
             last_loss = layer.backward(last_loss)
             if isinstance(layer, Layer):
+                layer.w += epsilon
                 layer.delta_w = (self.gamma * layer.delta_w) + (1)*self.lr*layer.d_w
                 layer.delta_b = (self.gamma * layer.delta_b) + (1)*self.lr*layer.d_b
                 layer.w = layer.w + layer.delta_w - self.L2*layer.w
@@ -386,20 +388,20 @@ def train(model, x_train, y_train, x_valid, y_valid, config):
     ax.plot(range(len(train_acc_array)), train_acc_array, label="Training Accuracy")
     ax.plot(range(len(val_acc_array)), val_acc_array, label="Validation Accuracy")
     ax.plot(best_epoch, val_acc_array[best_epoch], marker="o", Label="Best weights")
-    ax.set(title="Mini-Batch Normalization", xlabel="No. of epochs", ylabel="Accuracy") # manually update title for each run
+    ax.set(title="Mini-Batch Stochastic Gradient Descent", xlabel="No. of epochs", ylabel="Accuracy") # manually update title for each run
     ax.legend()
     ax.grid()
-    fig.savefig("./plots/Accuracy_%s_lr=%.4f_bsize=%d_g=%.2f_l2=%.2f.pdf"%(activation,learning_rate,batch_size,gamma,l2_penalty))
+    fig.savefig("./plots/Accuracy_%s_lr=%.4f_bsize=%d_g=%.2f_l2=%.2f.png"%(activation,learning_rate,batch_size,gamma,l2_penalty))
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.plot(range(len(train_loss_array)), train_loss_array, label="Training Loss")
     ax.plot(range(len(val_loss_array)), val_loss_array, label="Validation Loss")
     ax.plot(best_epoch, val_loss_array[best_epoch], marker="o", Label="Best weights")
-    ax.set(title="Mini-Batch Normalization", xlabel="No. of epochs", ylabel="Cross Entropy Loss") # manually update title for each run
+    ax.set(title="Mini-Batch Stochastic Gradient Descent", xlabel="No. of epochs", ylabel="Cross Entropy Loss") # manually update title for each run
     ax.legend()
     ax.grid()
-    fig.savefig("./plots/Loss_%s_lr=%.4f_bsize=%d_g=%.2f_l2=%.2f.pdf"%(activation,learning_rate,batch_size,gamma,l2_penalty))
+    fig.savefig("./plots/Loss_%s_lr=%.4f_bsize=%d_g=%.2f_l2=%.2f.png"%(activation,learning_rate,batch_size,gamma,l2_penalty))
     plt.show()
 
 def test(model, X_test, y_test):
@@ -415,6 +417,46 @@ def test(model, X_test, y_test):
     return (sum(correct) / y_test.shape[0])*100
 
 
+def check_gradients(model, x_train, y_train):
+    """
+    To perform gradient checks
+    """
+    x_sub = np.zeros((10, x_train.shape[1]))
+    y_sub = np.zeros((10, y_train.shape[1]))
+    for i in range(10):
+        for j,row in enumerate(y_train):
+            if row[i] == 1:
+                x_sub[i,] = x_train[j, ]
+                y_sub[i,] = row
+                break
+    logits = model(x_sub)
+    loss = model.loss(logits, y_sub)
+    model.backward()
+    
+    calculated_losses = []
+    for layer in model.layers[1:-1]:
+        if isinstance(layer, Layer):
+            print(layer.d_w[0])
+            calculated_losses.append(np.mean(layer.d_w[0]))
+    
+    model.backward()
+    
+    logits = model.forward(x_sub, epsilon=1e-2)
+    loss_plus = model.loss(logits, y_sub)
+    for layer in model.layers[1:-1]:
+        if isinstance(layer, Layer):
+            print(layer.d_w[0])
+            calculated_losses.append(np.mean(layer.d_w[0]))
+    
+    logits = model.forward(x_sub, epsilon=-1e-2)
+    loss_minus = model.loss(logits, y_sub)
+    
+    slope_losses = 2*1e2*(loss_plus - loss_minus)
+    
+    print(slope_losses)
+    print(calculated_losses)
+    
+    
 if __name__ == "__main__":
     # Load the configuration.
     config = load_config("./")
@@ -425,6 +467,10 @@ if __name__ == "__main__":
     # Load the data
     x_train, y_train = load_data(path="./", mode="train")
     x_test,  y_test  = load_data(path="./", mode="t10k")
+    
+    shuffle_indices = np.random.shuffle(np.arange(len(x_train)))
+    x_train = x_train[shuffle_indices][0]
+    y_train = y_train[shuffle_indices][0]
 
     # Create splits for validation data here.
     split_ratio = 0.9
@@ -437,3 +483,5 @@ if __name__ == "__main__":
 
     test_acc = test(model, x_test, y_test)
     print("Test accuracy:", test_acc)
+    
+#    check_gradients(model, x_train, y_train)
